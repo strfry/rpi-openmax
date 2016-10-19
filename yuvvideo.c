@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
+#include <unistd.h>
 #include <assert.h>
 
 #include <pthread.h>
@@ -63,7 +65,9 @@ static struct OMX_CALLBACKTYPE callbacks = {
 static OMX_BUFFERHEADERTYPE* bufhdr;
 static OMX_HANDLETYPE video_render;
 static pthread_mutex_t omx_mutex;
-  
+
+void bcm_host_init();
+ 
 void omx_bcm_init(void)  
 {
    bcm_host_init();
@@ -84,7 +88,7 @@ int omx_alloc_render(void)
    int status = 0;
    assert(status == 0);
    
-	OMX_ERRORTYPE err = OMX_GetHandle(&video_render, "OMX.broadcom.video_render", 0x1337, &callbacks);
+	OMX_ERRORTYPE err = OMX_GetHandle(&video_render, "OMX.broadcom.video_render", (void*)0x1337, &callbacks);
 		
 	if (err) {
 		puts("OMX_GetHandle error");
@@ -94,7 +98,6 @@ int omx_alloc_render(void)
 	puts("OMX_GetHandle success");
 	puts("created video_render component");	
 	     
-	unsigned int data_len = 0;
 	memset(&format, 0, sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE));
 	format.nSize = sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE);
 	format.nVersion.nVersion = OMX_VERSION;
@@ -193,13 +196,13 @@ int omx_update_size(int width, int height) {
 		for (i = 0; i < portdef.nBufferCountActual; i++) {
 			printf("Treating Buffer %d\n", i);
 			//unsigned char *buf= vcos_malloc_aligned(portdef.nBufferSize, portdef.nBufferAlignment, "bufname");
-			unsigned char *buf;
+			void *buf;
 			posix_memalign(&buf, portdef.nBufferAlignment, portdef.nBufferSize);
 			assert(buf && "Allocation Error");
 			
 		//	OMX_BUFFERHEADERTYPE* bufhdr;
 		const int portIndex = 90;
-			int err = OMX_UseBuffer(video_render, &bufhdr, portIndex, 0x777, portdef.nBufferSize, buf);
+			int err = OMX_UseBuffer(video_render, &bufhdr, portIndex, (void*)0x777, portdef.nBufferSize, buf);
 			assert(err == OMX_ErrorNone);
 		} 
 		
@@ -209,7 +212,7 @@ int omx_update_size(int width, int height) {
 	
 	
 	/*
-	int state;
+	OMX_STATETYPE state;
 	puts("to execute state");
 	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateExecuting, NULL);
 	//sleep(1);
@@ -222,7 +225,8 @@ int omx_update_size(int width, int height) {
 	* */
 	
    pthread_mutex_unlock(&omx_mutex);
-	
+
+   return 0;	
 }
 
 int omx_send_frame(void* data, uint32_t len)
@@ -230,7 +234,7 @@ int omx_send_frame(void* data, uint32_t len)
 	
 	pthread_mutex_lock(&omx_mutex);
    
-	int state;
+	OMX_STATETYPE state;
 	// Verify Executing state of video_render component
 	int err = OMX_GetState(video_render, &state);
 	//printf("Current State of video_render: %d\n", state);   
@@ -247,10 +251,11 @@ int omx_send_frame(void* data, uint32_t len)
 	
 	static int first_packet = 1;
 	int status = 0;
-	uint32_t data_len = 0;
 
     unsigned char *dest = bufhdr->pBuffer;
 /*
+	uint32_t data_len = 0;
+
          if(port_settings_changed == 0 &&
             ((data_len > 0 && ilclient_remove_event(video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1) == 0) ||
              (data_len == 0 && ilclient_wait_for_event(video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1,
