@@ -139,7 +139,7 @@ static void say(const char* message, ...) {
     if(str[str_len - 1] != '\n') {
         str[str_len] = '\n';
     }
-    fprintf(stderr, str);
+    fprintf(stderr, "%s", str);
 }
 
 static void die(const char* message, ...) {
@@ -349,7 +349,7 @@ static void dump_portdef(OMX_PARAM_PORTDEFINITIONTYPE* portdef) {
                 imgdef->nStride,
                 imgdef->nSliceHeight,
                 (imgdef->bFlagErrorConcealment == OMX_TRUE ? "yes" : "no"),
-                dump_compression_format(imgdef->eCompressionFormat),
+                dump_compression_format((OMX_VIDEO_CODINGTYPE)imgdef->eCompressionFormat),
                 dump_color_format(imgdef->eColorFormat));
             break;
         default:
@@ -411,7 +411,7 @@ static void block_until_port_changed(OMX_HANDLETYPE hComponent, OMX_U32 nPortInd
 }
 
 static void block_until_flushed(appctx *ctx) {
-    int quit;
+    int quit = 0;
     while(!quit) {
         vcos_semaphore_wait(&ctx->handler_lock);
         if(ctx->flushed) {
