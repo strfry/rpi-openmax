@@ -41,7 +41,7 @@ OMX_BUFFERHEADERTYPE* bufhdr;
 
 OMX_HANDLETYPE video_render;
   
-int vidisp_omx_init(void)
+int omx_alloc_render(void)
 {
    if(OMX_Init() != OMX_ErrorNone)
    {
@@ -80,36 +80,6 @@ int vidisp_omx_init(void)
 		exit(-23);
 	}
 	
-   // Where is the resolution?? -> In the port definition
-
-	//status = ilclient_change_component_state(video_render, OMX_StateIdle);
-	//assert(status == 0);
-
-	OMX_PARAM_PORTDEFINITIONTYPE portdef;
-	
-	memset(&portdef, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
-	portdef.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
-	portdef.nVersion.nVersion = OMX_VERSION;
-	portdef.nPortIndex = 90;
-	// work out buffer requirements, check port is in the right state
-
-	error = OMX_GetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
-	
-	portdef.format.video.nFrameWidth = 320;
-	portdef.format.video.nFrameHeight = 240;
-	portdef.format.video.nStride = 320;
-	portdef.format.video.nSliceHeight = 240;
-	
-	error = OMX_SetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
-	error = OMX_GetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
-	
-	puts("set port definition parameter");
-	
-	printf("Port: enabled=%d\n", portdef.bEnabled);
-	
-	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateIdle, NULL);
-	puts("to idle state");
-	
 	// 
 	
 		int portIndex = 90;
@@ -119,23 +89,6 @@ int vidisp_omx_init(void)
 		int i;
 		
 		
-		for (i = 0; i < portdef.nBufferCountActual; i++) {
-			printf("Treating Buffer %d\n", i);
-			//unsigned char *buf= vcos_malloc_aligned(portdef.nBufferSize, portdef.nBufferAlignment, "bufname");
-			unsigned char *buf;
-			posix_memalign(&buf, portdef.nBufferAlignment, portdef.nBufferSize);
-			assert(buf && "Allocation Error");
-			
-		//	OMX_BUFFERHEADERTYPE* bufhdr;
-	
-			error = OMX_UseBuffer(video_render, &bufhdr, portIndex, 0x777, portdef.nBufferSize, buf);
-			assert(error == OMX_ErrorNone);
-		} 
-		
-	   if(i != portdef.nBufferCountActual) {
-		   puts("wrong buffer counter");
-		}
-	
 
 	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateIdle, NULL);
 	puts("to idle state");
@@ -161,19 +114,78 @@ int vidisp_omx_init(void)
 	return 0;
 }
 
-int vidisp_omx_display(FILE* in) {
+int omx_update_size(int width, int height) {
+	
+   // Where is the resolution?? -> In the port definition
+
+	//status = ilclient_change_component_state(video_render, OMX_StateIdle);
+	//assert(status == 0);
+
+	OMX_PARAM_PORTDEFINITIONTYPE portdef;
+	
+	memset(&portdef, 0, sizeof(OMX_PARAM_PORTDEFINITIONTYPE));
+	portdef.nSize = sizeof(OMX_PARAM_PORTDEFINITIONTYPE);
+	portdef.nVersion.nVersion = OMX_VERSION;
+	portdef.nPortIndex = 90;
+	// work out buffer requirements, check port is in the right state
+
+	int error = OMX_GetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
+	
+	portdef.format.video.nFrameWidth = 320;
+	portdef.format.video.nFrameHeight = 240;
+	portdef.format.video.nStride = 320;
+	portdef.format.video.nSliceHeight = 240;
+	
+	error = OMX_SetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
+	error = OMX_GetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
+	
+	puts("set port definition parameter");
+	
+	printf("Port: enabled=%d\n", portdef.bEnabled);
+	
+	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateIdle, NULL);
+	puts("to idle state");
+	
+	int i;
+		for (i = 0; i < portdef.nBufferCountActual; i++) {
+			printf("Treating Buffer %d\n", i);
+			//unsigned char *buf= vcos_malloc_aligned(portdef.nBufferSize, portdef.nBufferAlignment, "bufname");
+			unsigned char *buf;
+			posix_memalign(&buf, portdef.nBufferAlignment, portdef.nBufferSize);
+			assert(buf && "Allocation Error");
+			
+		//	OMX_BUFFERHEADERTYPE* bufhdr;
+		const int portIndex = 90;
+			int error = OMX_UseBuffer(video_render, &bufhdr, portIndex, 0x777, portdef.nBufferSize, buf);
+			assert(error == OMX_ErrorNone);
+		} 
+		
+	   if(i != portdef.nBufferCountActual) {
+		   puts("wrong buffer counter");
+		}
+	
+	
+	
+	puts("to execute state");
+	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateExecuting, NULL);
+	sleep(1);
+	int state;
+	error = OMX_GetState(video_render, &state);
+	if (error != OMX_ErrorNone || state != OMX_StateExecuting) {
+		puts("video_render not in executing state");
+	    return -1;
+	}
+	//sleep(1);
+	
+}
+
+int omx_send_frame(void* data, uint32_t len)
+{
 	static int first_packet = 1;
 	int status = 0;
 	uint32_t data_len = 0;
 
-	while (1) {
-      //while((buf = ilclient_get_input_buffer(video_render, 90, 1)) != NULL)
-      //{
-         // feed data and wait until we get port settings changed
-         unsigned char *dest = bufhdr->pBuffer;
-
-         data_len += fread(dest, 1, bufhdr->nAllocLen-data_len, in);
-
+    unsigned char *dest = bufhdr->pBuffer;
 /*
          if(port_settings_changed == 0 &&
             ((data_len > 0 && ilclient_remove_event(video_decode, OMX_EventPortSettingsChanged, 131, 0, 0, 1) == 0) ||
@@ -185,28 +197,29 @@ int vidisp_omx_display(FILE* in) {
             ilclient_change_component_state(video_render, OMX_StateExecuting);
          }
 */
-         if(!data_len)
-            break;
+         
+    if (len > bufhdr->nAllocLen) {
+		puts("Too large frame for OMX Buffer size");
+		return -3;
+	}
+    memcpy(dest, data, len);
+    bufhdr->nFilledLen = len;
+    bufhdr->nOffset = 0;
+    
+    if(first_packet)
+	{
+		bufhdr->nFlags = OMX_BUFFERFLAG_STARTTIME;
+		first_packet = 0;
+	}
+	else
+	{
+		bufhdr->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
+	}
 
-         bufhdr->nFilledLen = data_len;
-         data_len = 0;
-
-         bufhdr->nOffset = 0;
-         if(first_packet)
-         {
-            bufhdr->nFlags = OMX_BUFFERFLAG_STARTTIME;
-            first_packet = 0;
-         }
-         else
-            bufhdr->nFlags = OMX_BUFFERFLAG_TIME_UNKNOWN;
-
-         if(OMX_EmptyThisBuffer(video_render, bufhdr) != OMX_ErrorNone)
-         {
-			 puts("OMX_EmptyThisBuffer error");
-            status = -6;
-            break;
-         }
-      }
+    if(OMX_EmptyThisBuffer(video_render, bufhdr) != OMX_ErrorNone) {
+		puts("OMX_EmptyThisBuffer error");
+		return -6;
+    }
 
 /*
       buf->nFilledLen = 0;
@@ -216,17 +229,11 @@ int vidisp_omx_display(FILE* in) {
          status = -20;
 */
       // wait for EOS from render
-//      ilclient_wait_for_event(video_render, OMX_EventBufferFlag, 90, 0, OMX_BUFFERFLAG_EOS, 0,
-//                              ILCLIENT_BUFFER_FLAG_EOS, 10000);
 
-
-   fclose(in);
-
-   OMX_Deinit();
+   //OMX_Deinit();
 
    //ilclient_destroy(client);
-   return status;
-   
+   return status;   
 }
 
 
@@ -245,9 +252,16 @@ int main (int argc, char **argv)
       
       
    bcm_host_init();
-   vidisp_omx_init();
-   vidisp_omx_display(in);
-   //return video_decode_test(argv[1]);
+   omx_alloc_render();
+   omx_update_size(320, 240);
+   
+   while (1) {
+	   unsigned int frame_size = 320 * 240;
+	   void* data = malloc(frame_size);
+	   frame_size = fread(data, 1, frame_size, in);
+	   
+	   omx_send_frame(data, frame_size);
+	}
    
    fclose(in);
 }
