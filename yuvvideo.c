@@ -43,6 +43,8 @@ OMX_HANDLETYPE video_render;
   
 int omx_alloc_render(void)
 {
+   bcm_host_init();
+   
    if(OMX_Init() != OMX_ErrorNone)
    {
       return -4;
@@ -80,27 +82,20 @@ int omx_alloc_render(void)
 		exit(-23);
 	}
 	
-	// 
+	int portIndex = 90;
+	error = OMX_SendCommand(video_render, OMX_CommandPortEnable, portIndex, NULL);
+	assert(error == OMX_ErrorNone);	
 	
-		int portIndex = 90;
-	   error = OMX_SendCommand(video_render, OMX_CommandPortEnable, portIndex, NULL);
-		assert(error == OMX_ErrorNone);
-		
-		int i;
-		
-		
-
+	
+	int state;
 	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateIdle, NULL);
 	puts("to idle state");
-	//sleep(1);
-	// check component is in the right state to accept buffers
-	int state;
+	sleep(1);
 	error = OMX_GetState(video_render, &state);
 	if (error != OMX_ErrorNone || state != OMX_StateIdle) {
 		puts("video_render not in idle state");
 	    return -1;
 	}
-	
 	puts("to execute state");
 	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateExecuting, NULL);
 	sleep(1);
@@ -109,7 +104,6 @@ int omx_alloc_render(void)
 		puts("video_render not in executing state");
 	    return -1;
 	}
-	//sleep(1);
 	
 	return 0;
 }
@@ -165,11 +159,10 @@ int omx_update_size(int width, int height) {
 		}
 	
 	
-	
+	int state;
 	puts("to execute state");
 	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateExecuting, NULL);
 	sleep(1);
-	int state;
 	error = OMX_GetState(video_render, &state);
 	if (error != OMX_ErrorNone || state != OMX_StateExecuting) {
 		puts("video_render not in executing state");
@@ -181,6 +174,17 @@ int omx_update_size(int width, int height) {
 
 int omx_send_frame(void* data, uint32_t len)
 {
+	/*
+	int state;
+	// Verify Executing state of video_render component
+	int error = OMX_GetState(video_render, &state);
+	if (error != OMX_ErrorNone || state != OMX_StateExecuting) {
+		puts("video_render not in executing state");
+	    return -1;
+	}
+	* */
+	
+	
 	static int first_packet = 1;
 	int status = 0;
 	uint32_t data_len = 0;
@@ -251,7 +255,6 @@ int main (int argc, char **argv)
   }
       
       
-   bcm_host_init();
    omx_alloc_render();
    omx_update_size(320, 240);
    
