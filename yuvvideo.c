@@ -8,92 +8,77 @@
 #include <IL/OMX_Broadcom.h>
 
 
-int EventHandler(
-        OMX_HANDLETYPE hComponent,
-        OMX_PTR pAppData,
-        OMX_EVENTTYPE eEvent,
-        OMX_U32 nData1,
-        OMX_U32 nData2,
-        OMX_PTR pEventData) {
-			
-			
+static int EventHandler(OMX_HANDLETYPE hComponent, void* pAppData, OMX_EVENTTYPE eEvent,
+        OMX_U32 nData1, OMX_U32 nData2, void* pEventData)
+{	
 	puts("OMX EventHandler");
-			return 0;
-		}
+	return 0;
+}
 		
-OMX_ERRORTYPE EmptyBufferDone(OMX_HANDLETYPE hComponent,
-        OMX_PTR pAppData,
+static int EmptyBufferDone(OMX_HANDLETYPE hComponent, void* pAppData,
         OMX_BUFFERHEADERTYPE* pBuffer)
 {
 	puts("EmptyBufferDone");
-	volatile int* i = 0;
-	//puts("now crash");
-	//return 0;
+	return 0;
 }
 
-OMX_ERRORTYPE FillBufferDone(OMX_HANDLETYPE hComponent,
+static OMX_ERRORTYPE FillBufferDone(OMX_HANDLETYPE hComponent,
         OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
 {
 	puts("FillBufferDone2");
 	return 0;
 }
 
-
-struct OMX_CALLBACKTYPE callbacks = {
+static struct OMX_CALLBACKTYPE callbacks = {
 	&EventHandler,
 	&EmptyBufferDone,
 	&FillBufferDone
 };
 
-static int video_decode_test(char *filename)
-{
-   OMX_VIDEO_PARAM_PORTFORMATTYPE format;
-   FILE *in;
-   
-   int status = 0;
-   if((in = fopen(filename, "rb")) == NULL)
-      return -2;
+// GLOBAL BUFFER
 
+OMX_BUFFERHEADERTYPE* bufhdr;
+
+OMX_HANDLETYPE video_render;
+  
+int vidisp_omx_init(void)
+{
    if(OMX_Init() != OMX_ErrorNone)
    {
-      fclose(in);
       return -4;
    }
    
+   OMX_VIDEO_PARAM_PORTFORMATTYPE format;
+   
+   int status = 0;
    assert(status == 0);
    
-	OMX_HANDLETYPE video_render;
-	OMX_ERRORTYPE err = OMX_GetHandle(&video_render, "OMX.broadcom.video_render", 0x1337, &callbacks);
+	OMX_ERRORTYPE error = OMX_GetHandle(&video_render, "OMX.broadcom.video_render", 0x1337, &callbacks);
 		
-	if (err) {
+	if (error) {
 		puts("OMX_GetHandle error");
 		return 0;
 	}
 	
 	puts("OMX_GetHandle success");
-	puts("created video_render component");
-	
-	
-	int state, error;
-	
-         
-   unsigned int data_len = 0;
-   memset(&format, 0, sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE));
-   format.nSize = sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE);
-   format.nVersion.nVersion = OMX_VERSION;
-   format.nPortIndex = 90;	
-   format.nIndex = 0; // ????
+	puts("created video_render component");	
+	     
+	unsigned int data_len = 0;
+	memset(&format, 0, sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE));
+	format.nSize = sizeof(OMX_VIDEO_PARAM_PORTFORMATTYPE);
+	format.nVersion.nVersion = OMX_VERSION;
+	format.nPortIndex = 90;	
+	format.nIndex = 0; // ????
+
+	format.xFramerate = 15 << 16;
+	format.eCompressionFormat = OMX_VIDEO_CodingUnused;
+	format.eColorFormat = OMX_COLOR_FormatYUV420PackedPlanar;
    
-   format.xFramerate = 15 << 16;
-   format.eCompressionFormat = OMX_VIDEO_CodingUnused;
-   format.eColorFormat = OMX_COLOR_FormatYUV420PackedPlanar;
-   /*
+	puts("Set Format parameters");
 	if (OMX_SetParameter(video_render, OMX_IndexParamVideoPortFormat, &format) != OMX_ErrorNone) {
 		puts("fucking error setting format on video_render");
 		exit(-23);
 	}
-	* */
-puts("Set Format parameters");
 	
    // Where is the resolution?? -> In the port definition
 
@@ -132,7 +117,7 @@ puts("Set Format parameters");
 		assert(error == OMX_ErrorNone);
 		
 		int i;
-		OMX_BUFFERHEADERTYPE* bufhdr;
+		
 		
 		for (i = 0; i < portdef.nBufferCountActual; i++) {
 			printf("Treating Buffer %d\n", i);
@@ -147,39 +132,16 @@ puts("Set Format parameters");
 			assert(error == OMX_ErrorNone);
 		} 
 		
-		/*
-	      //vcos_free(buf);
-//849	      end = (OMX_BUFFERHEADERTYPE **) &((*end)->pAppPrivate);
-//852	   // queue these buffers
-//853	   vcos_semaphore_wait(&comp->sema);
-
-//866	   vcos_semaphore_post(&comp->sema); */
-
 	   if(i != portdef.nBufferCountActual) {
 		   puts("wrong buffer counter");
 		}
 	
-//869	      ilclient_wait_for_command_complete(comp, OMX_CommandPortEnable, portIndex) < 0)
-
-// ERROR HANDLER
-/*
-870	   {
-871	      ilclient_disable_port_buffers(comp, portIndex, NULL, ilclient_free, private);
-872	
-873	      // at this point the first command might have terminated with an error, which means that
-874	      // the port is disabled before the disable_port_buffers function is called, so we're left
-875	      // with the error bit set and an error event in the queue.  Clear these now if they exist.
-876	      ilclient_remove_event(comp, OMX_EventError, 0, 1, 1, 0);
-877	
-878	      return -1;
-879	   }
-* */
-
 
 	OMX_SendCommand(video_render, OMX_CommandStateSet, OMX_StateIdle, NULL);
 	puts("to idle state");
 	//sleep(1);
 	// check component is in the right state to accept buffers
+	int state;
 	error = OMX_GetState(video_render, &state);
 	if (error != OMX_ErrorNone || state != OMX_StateIdle) {
 		puts("video_render not in idle state");
@@ -196,7 +158,13 @@ puts("Set Format parameters");
 	}
 	//sleep(1);
 	
-      int first_packet = 1;
+	return 0;
+}
+
+int vidisp_omx_display(FILE* in) {
+	static int first_packet = 1;
+	int status = 0;
+	uint32_t data_len = 0;
 
 	while (1) {
       //while((buf = ilclient_get_input_buffer(video_render, 90, 1)) != NULL)
@@ -268,8 +236,20 @@ int main (int argc, char **argv)
       printf("Usage: %s <filename>\n", argv[0]);
       exit(1);
    }
+   
+   FILE *in;
+   if((in = fopen(argv[1], "rb")) == NULL) {
+	   perror("fopen");
+      return -2;
+  }
+      
+      
    bcm_host_init();
-   return video_decode_test(argv[1]);
+   vidisp_omx_init();
+   vidisp_omx_display(in);
+   //return video_decode_test(argv[1]);
+   
+   fclose(in);
 }
 
 
