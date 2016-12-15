@@ -26,21 +26,23 @@ OMX_ERRORTYPE EmptyBufferDone(OMX_HANDLETYPE hComponent,
         OMX_BUFFERHEADERTYPE* pBuffer)
 {
 	puts("EmptyBufferDone");
-	return 0;
+	volatile int* i = 0;
+	//puts("now crash");
+	//return 0;
 }
 
 OMX_ERRORTYPE FillBufferDone(OMX_HANDLETYPE hComponent,
         OMX_PTR pAppData, OMX_BUFFERHEADERTYPE* pBuffer)
 {
-	puts("FillBufferDone");
+	puts("FillBufferDone2");
 	return 0;
 }
 
 
 struct OMX_CALLBACKTYPE callbacks = {
 	&EventHandler,
-	&FillBufferDone,
-	&EmptyBufferDone
+	&EmptyBufferDone,
+	&FillBufferDone
 };
 
 static int video_decode_test(char *filename)
@@ -113,7 +115,7 @@ puts("Set Format parameters");
 	portdef.format.video.nStride = 320;
 	portdef.format.video.nSliceHeight = 240;
 	
-	//error = OMX_SetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
+	error = OMX_SetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
 	error = OMX_GetParameter(video_render, OMX_IndexParamPortDefinition, &portdef);
 	
 	puts("set port definition parameter");
